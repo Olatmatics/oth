@@ -2,7 +2,10 @@ import $ from 'jquery';
 import * as THREE from 'three';
 import emailjs from '@emailjs/browser';
 
-emailjs.init('YOUR_PUBLIC_KEY');
+emailjs.init({
+  publicKey: 'bLPuIhHgAWBrKa5t7',
+  privateKey: 'dgDeiPFtGUjCgXyGBuFYU',
+});
 
 /* ==========================================================================
    THEME SYSTEM
@@ -732,8 +735,8 @@ function initArticleModal() {
       {{experience}}, {{cover}}, {{link}}, {{cv_name}}, {{topic}}
    4. Copy the Service ID, Template ID, and Public Key below
    ========================================================================== */
-const EMAILJS_SERVICE_ID = 'YOUR_SERVICE_ID';
-const EMAILJS_TEMPLATE_ID = 'YOUR_TEMPLATE_ID';
+const EMAILJS_SERVICE_ID = 'service_kypqot4';
+const EMAILJS_TEMPLATE_ID = 'template_j7aqpnq';
 
 async function sendEmail(formData) {
   try {
