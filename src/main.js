@@ -1052,6 +1052,12 @@ function addClient() {
   }
   data.clients.push({ name, email, password, company, projects: [] });
   saveAdminData(data);
+  sendEmail({
+    form_type: 'New Client Registration',
+    name, email,
+    company: company || 'Not provided',
+    description: `Admin registered client: ${name} (${email})`,
+  });
   $('#ac-name, #ac-email, #ac-pass, #ac-company').val('');
   renderAdminDashboard();
   showToast('✅ Client registered successfully!');
