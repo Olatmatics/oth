@@ -732,7 +732,8 @@ function initArticleModal() {
    3. Go to Email Templates → Create a template with these variables:
       {{form_type}}, {{name}}, {{email}}, {{phone}}, {{company}},
       {{service}}, {{location}}, {{budget}}, {{description}},
-      {{experience}}, {{cover}}, {{link}}, {{cv_name}}, {{topic}}
+      {{experience}}, {{cover}}, {{link}}, {{cv_name}}, {{topic}},
+      {{to_email}}
    4. Copy the Service ID, Template ID, and Public Key below
    ========================================================================== */
 const EMAILJS_SERVICE_ID = 'service_kypqot4';
@@ -740,7 +741,10 @@ const EMAILJS_TEMPLATE_ID = 'template_j7aqpnq';
 
 async function sendEmail(formData) {
   try {
-    await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, formData);
+    await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+      ...formData,
+      to_email: 'olatmatics.tech@gmail.com',
+    });
     console.log('✅ Email sent to olatmatics.tech@gmail.com');
   } catch (err) {
     console.error('❌ Email send failed:', err);
