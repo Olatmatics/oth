@@ -3,8 +3,8 @@ import * as THREE from 'three';
 import emailjs from '@emailjs/browser';
 
 emailjs.init({
-  publicKey: 'bLPuIhHgAWBrKa5t7',
-  privateKey: 'dgDeiPFtGUjCgXyGBuFYU',
+  publicKey: '8jQJJ96CcdgO-6Q2b',
+  privateKey: 'H20KK4W4_t290CKpZpufw',
 });
 
 /* ==========================================================================
