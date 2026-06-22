@@ -1,5 +1,8 @@
 import $ from 'jquery';
 import * as THREE from 'three';
+import emailjs from '@emailjs/browser';
+
+emailjs.init('YOUR_PUBLIC_KEY');
 
 /* ==========================================================================
    THEME SYSTEM
@@ -378,7 +381,12 @@ function initEmergencyDispatch() {
     const $overlay = $('#emergency-modal');
     $overlay.find('.engineer-cards').html(renderEngineerCards());
     $overlay.addClass('open');
-    notifyEmail('🚨 Emergency call-out triggered on website. Response required immediately.');
+    sendEmail({
+      form_type: 'Emergency Call-Out',
+      name: 'Website Visitor',
+      email: 'olatmatics.tech@gmail.com',
+      description: '🚨 Emergency call-out triggered on website. Response required immediately.',
+    });
   };
 
   window.closeEmergencyModal = () => {
@@ -419,18 +427,25 @@ function renderPortalLogin() {
       </div>
       <button class="submit-btn" onclick="portalLogin()" style="margin-top:0.5rem;">Sign In →</button>
       <p style="margin-top:1rem;font-size:12px;color:var(--muted);">Don't have an account? <a href="#contact" style="color:var(--accent);" onclick="closePortalIfOpen()">Contact us</a> to request access.</p>
-      <p style="margin-top:0.5rem;font-size:11px;color:var(--muted);">Demo: client@olatmatics.com / client123</p>
     </div>
   `;
 }
 
 function renderPortalDashboard(user) {
+  const projects = user.projects || [];
+  const activeCount = projects.filter(p => p.status === 'active').length;
+  const projectRows = projects.length > 0 ? projects.map(p => {
+    const progressDisplay = p.progress != null ? p.progress + '%' : '—';
+    const statusMap = { active: 'In Progress', pending: 'Scheduled', complete: 'Complete', delayed: 'Delayed' };
+    const statusClass = { active: 'status-active', pending: 'status-pending', complete: 'status-complete', delayed: 'status-delayed' };
+    return `<tr><td>${p.name}</td><td>${p.division}</td><td>${progressDisplay}</td><td><span class="status-pill ${statusClass[p.status] || 'status-pending'}">${statusMap[p.status] || p.status}</span></td></tr>`;
+  }).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:2rem;">No projects assigned yet.</td></tr>';
   return `
     <div class="portal-layout scroll-animate fade-in animated">
       <div class="portal-sidebar">
         <div class="portal-logo">
           <img class="portal-logo-mark" src="./src/logo.png" alt="OTH Logo">
-          <div><div class="portal-logo-text">Client Portal</div><div style="font-size:10px;color:var(--muted);">${user.company}</div></div>
+          <div><div class="portal-logo-text">Client Portal</div><div style="font-size:10px;color:var(--muted);">${user.company || ''}</div></div>
         </div>
         <div class="p-nav-item active"><span class="p-nav-icon">📊</span> Dashboard</div>
         <div class="p-nav-item"><span class="p-nav-icon">📁</span> My Projects</div>
@@ -449,20 +464,17 @@ function renderPortalDashboard(user) {
           </div>
         </div>
         <div class="portal-cards">
-          <div class="p-metric"><div class="p-metric-val">3</div><div class="p-metric-label">Active Projects</div></div>
-          <div class="p-metric"><div class="p-metric-val">7</div><div class="p-metric-label">Open Tickets</div></div>
-          <div class="p-metric"><div class="p-metric-val">2</div><div class="p-metric-label">Pending Actions</div></div>
-          <div class="p-metric"><div class="p-metric-val">₦12M</div><div class="p-metric-label">Outstanding</div></div>
+          <div class="p-metric"><div class="p-metric-val">${activeCount}</div><div class="p-metric-label">Active Projects</div></div>
+          <div class="p-metric"><div class="p-metric-val">${projects.length}</div><div class="p-metric-label">Total Projects</div></div>
+          <div class="p-metric"><div class="p-metric-val">${projects.filter(p => p.status === 'complete').length}</div><div class="p-metric-label">Completed</div></div>
+          <div class="p-metric"><div class="p-metric-val">${projects.filter(p => p.status === 'delayed').length}</div><div class="p-metric-label">Delayed</div></div>
         </div>
         <div class="portal-table-wrap">
-          <div class="portal-table-head"><h4>Active Projects</h4><span class="pt-label">Updated: Today</span></div>
+          <div class="portal-table-head"><h4>My Projects</h4><span class="pt-label">Updated: Today</span></div>
           <table class="portal-tbl">
             <thead><tr><th>Project</th><th>Division</th><th>Progress</th><th>Status</th></tr></thead>
             <tbody>
-              <tr><td>Solar Installation — Facility B</td><td>Power Systems</td><td>72%</td><td><span class="status-pill status-active">In Progress</span></td></tr>
-              <tr><td>CCTV Upgrade — Gate 1–4</td><td>Security</td><td>45%</td><td><span class="status-pill status-active">In Progress</span></td></tr>
-              <tr><td>MCC Panel Replacement</td><td>Control Panels</td><td>100%</td><td><span class="status-pill status-complete">Complete</span></td></tr>
-              <tr><td>Generator PM Contract Q2</td><td>Power Systems</td><td>—</td><td><span class="status-pill status-pending">Scheduled</span></td></tr>
+              ${projectRows}
             </tbody>
           </table>
         </div>
@@ -477,14 +489,25 @@ function renderPortalDashboard(user) {
 function portalLogin() {
   const email = $('#portal-email').val().trim();
   const pass = $('#portal-pass').val();
+  // Check hardcoded admin first
   const found = demoClients[email];
-  if (!found || found.password !== pass) {
-    showToast('❌ Invalid credentials. Try: client@olatmatics.com / client123');
+  if (found && found.password === pass) {
+    currentUser = { ...found, email };
+    $('#portal-section-content').html(renderPortalDashboard(currentUser));
+    showToast('✅ Welcome back, ' + currentUser.name + '!');
     return;
   }
-  currentUser = { ...found, email };
-  $('#portal-section-content').html(renderPortalDashboard(currentUser));
-  showToast('✅ Welcome back, ' + currentUser.name + '!');
+  // Check admin-created clients from localStorage
+  const adminData = JSON.parse(localStorage.getItem('oth-admin-data') || '{}');
+  const clients = adminData.clients || [];
+  const clientMatch = clients.find(c => c.email === email && c.password === pass);
+  if (clientMatch) {
+    currentUser = { ...clientMatch, email };
+    $('#portal-section-content').html(renderPortalDashboard(currentUser));
+    showToast('✅ Welcome back, ' + currentUser.name + '!');
+    return;
+  }
+  showToast('❌ Invalid credentials. Contact us to get access.');
 }
 
 function portalLogout() {
@@ -698,10 +721,27 @@ function initArticleModal() {
 }
 
 /* ==========================================================================
-   EMAIL NOTIFICATION SIMULATION
+   EMAIL SENDING — EmailJS (replace placeholders below with your credentials)
+   ==========================================================================
+   To set up:
+   1. Sign up at https://www.emailjs.com (free — 200 emails/month)
+   2. Go to Email Services → Connect Gmail → note the Service ID
+   3. Go to Email Templates → Create a template with these variables:
+      {{form_type}}, {{name}}, {{email}}, {{phone}}, {{company}},
+      {{service}}, {{location}}, {{budget}}, {{description}},
+      {{experience}}, {{cover}}, {{link}}, {{cv_name}}, {{topic}}
+   4. Copy the Service ID, Template ID, and Public Key below
    ========================================================================== */
-function notifyEmail(subject) {
-  console.log(`📧 Notification → olatmatics.tech@gmail.com | Subject: ${subject}`);
+const EMAILJS_SERVICE_ID = 'YOUR_SERVICE_ID';
+const EMAILJS_TEMPLATE_ID = 'YOUR_TEMPLATE_ID';
+
+async function sendEmail(formData) {
+  try {
+    await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, formData);
+    console.log('✅ Email sent to olatmatics.tech@gmail.com');
+  } catch (err) {
+    console.error('❌ Email send failed:', err);
+  }
 }
 
 /* ==========================================================================
@@ -716,7 +756,16 @@ function initFormsAndModals() {
       showToast('⚠️ Please fill in your name, email, and select a service.');
       return;
     }
-    notifyEmail(`New Quote Request from ${n} (${e}) — Service: ${s}`);
+    sendEmail({
+      form_type: 'Quote Request',
+      name: n, email: e,
+      phone: $('#f-phone').val(),
+      company: $('#f-company').val(),
+      service: s,
+      location: $('#f-location').val(),
+      budget: $('#f-budget').val(),
+      description: $('#f-desc').val(),
+    });
     showToast('✅ Quote submitted! We\'ll contact you within 24 hours.');
     ['f-name','f-email','f-phone','f-company','f-location','f-desc'].forEach(id => $(`#${id}`).val(''));
     $('#f-service').val('');
@@ -754,7 +803,15 @@ function initFormsAndModals() {
     }
     const cv = $('#a-cv')[0]?.files[0];
     const cvName = cv ? cv.name : 'No file attached';
-    notifyEmail(`New Job Application from ${n} (${e}) — CV: ${cvName}`);
+    sendEmail({
+      form_type: 'Job Application',
+      name: n, email: e,
+      phone: $('#a-phone').val(),
+      experience: $('#a-exp').val(),
+      cover: $('#a-cover').val(),
+      link: $('#a-link').val(),
+      cv_name: cvName,
+    });
     closeModal();
     showToast('✅ Application received! We\'ll review and contact you within 5 days.');
     ['a-name','a-email','a-phone','a-cover','a-link'].forEach(id => $(`#${id}`).val(''));
@@ -774,7 +831,12 @@ function initFormsAndModals() {
     const n = $('#c-name').val();
     const e = $('#c-email').val();
     if (!n || !e) { showToast('⚠️ Please enter your name and email.'); return; }
-    notifyEmail(`Free Consultation Request from ${n} (${e})`);
+    sendEmail({
+      form_type: 'Consultation Booking',
+      name: n, email: e,
+      phone: $('#c-phone').val(),
+      topic: $('#c-topic').val(),
+    });
     closeConsultationModal();
     showToast('✅ Consultation booked! Our team will call you within 2 hours.');
     ['c-name','c-email','c-phone','c-topic'].forEach(id => $(`#${id}`).val(''));
@@ -795,11 +857,258 @@ function initMap() {
         loading="lazy"
         allowfullscreen
         referrerpolicy="no-referrer-when-downgrade"
-        src="https://www.google.com/maps/embed/v1/place?q=Federal+Housing+Lugbe+Abuja+Nigeria&key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU3Muo">
+        src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3939.176!2d7.4705!3d9.112!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zOcKwMDYnNDMuMyJOIDfCsDI4JzEzLjgiRQ!5e0!3m2!1sen!2sng!4v1">
       </iframe>
     `);
   }
 }
+
+/* ==========================================================================
+   ADMIN PANEL
+   ========================================================================== */
+let adminLoggedIn = false;
+let selectedClientEmail = null;
+
+function getAdminData() {
+  return JSON.parse(localStorage.getItem('oth-admin-data') || '{"clients":[]}');
+}
+
+function saveAdminData(data) {
+  localStorage.setItem('oth-admin-data', JSON.stringify(data));
+}
+
+function toggleAdmin() {
+  $('#admin-modal').addClass('open');
+  if (!adminLoggedIn) {
+    $('#admin-login-screen').show();
+    $('#admin-dashboard-screen').hide();
+  } else {
+    $('#admin-login-screen').hide();
+    $('#admin-dashboard-screen').show();
+    renderAdminDashboard();
+  }
+}
+
+function closeAdminModal() {
+  $('#admin-modal').removeClass('open');
+}
+
+function adminLogin() {
+  const pass = $('#admin-pass').val();
+  if (pass === 'admin123@@') {
+    adminLoggedIn = true;
+    $('#admin-login-screen').hide();
+    $('#admin-dashboard-screen').show();
+    renderAdminDashboard();
+    showToast('✅ Welcome, Admin!');
+  } else {
+    showToast('❌ Invalid admin password.');
+  }
+}
+
+function adminLogout() {
+  adminLoggedIn = false;
+  selectedClientEmail = null;
+  $('#admin-pass').val('');
+  $('#admin-login-screen').show();
+  $('#admin-dashboard-screen').hide();
+  closeAdminModal();
+  showToast('Signed out of admin panel.');
+}
+
+function renderAdminDashboard() {
+  const data = getAdminData();
+  const clients = data.clients || [];
+  const sel = selectedClientEmail;
+  const selectedClient = sel ? clients.find(c => c.email === sel) : null;
+
+  let clientRows = clients.length > 0 ? clients.map((c, i) => `
+    <tr class="${c.email === sel ? 'admin-row-selected' : ''}" onclick="selectClient('${c.email}')">
+      <td>${c.name}</td>
+      <td>${c.email}</td>
+      <td>${c.company || '—'}</td>
+      <td>${(c.projects || []).length}</td>
+      <td>
+        <button class="admin-btn-sm admin-btn-danger" onclick="event.stopPropagation();deleteClient('${c.email}')">Delete</button>
+      </td>
+    </tr>
+  `).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:1.5rem;">No clients registered yet. Add one below.</td></tr>';
+
+  let projectSection = '';
+  if (selectedClient) {
+    const projects = selectedClient.projects || [];
+    let projectRows = projects.length > 0 ? projects.map((p, i) => {
+      const statusLabels = { active: 'In Progress', pending: 'Scheduled', complete: 'Complete', delayed: 'Delayed' };
+      const statusClasses = { active: 'status-active', pending: 'status-pending', complete: 'status-complete', delayed: 'status-delayed' };
+      const barColor = p.status === 'complete' ? '#475569' : p.status === 'delayed' ? '#e24b4a' : p.status === 'pending' ? '#f5a623' : '#1dbe8a';
+      const progressVal = p.progress || 0;
+      return `<tr>
+        <td>${p.name}</td>
+        <td>${p.division || '—'}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="flex:1;height:6px;background:var(--dark4);border-radius:3px;overflow:hidden;">
+              <div style="height:100%;width:${progressVal}%;background:${barColor};border-radius:3px;transition:width 0.3s;"></div>
+            </div>
+            <span style="font-size:11px;min-width:30px;">${progressVal}%</span>
+          </div>
+        </td>
+        <td><span class="status-pill ${statusClasses[p.status] || 'status-pending'}">${statusLabels[p.status] || p.status}</span></td>
+        <td><button class="admin-btn-sm admin-btn-danger" onclick="deleteProject('${selectedClient.email}',${i})">Delete</button></td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:1rem;">No projects for this client.</td></tr>';
+
+    projectSection = `
+      <div class="admin-client-projects">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+          <h4 style="font-size:14px;">Projects for <strong>${selectedClient.name}</strong> (${selectedClient.email})</h4>
+          <button class="admin-btn-sm" onclick="showToast('Use the form below to add a project.')">+ Add Project</button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="portal-tbl admin-projects-tbl">
+            <thead><tr><th>Project</th><th>Division</th><th>Progress</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>${projectRows}</tbody>
+          </table>
+        </div>
+        <div class="admin-add-project" style="margin-top:1rem;padding:1rem;background:var(--dark4);border-radius:8px;">
+          <div style="font-size:12px;font-weight:700;margin-bottom:0.5rem;">Add New Project</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:8px;align-items:end;">
+            <div><label style="font-size:10px;color:var(--muted);display:block;">Project Name</label><input type="text" id="ap-name" placeholder="Project name" style="width:100%;padding:6px 8px;background:var(--dark3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;"></div>
+            <div><label style="font-size:10px;color:var(--muted);display:block;">Division</label>
+              <select id="ap-div" style="width:100%;padding:6px 8px;background:var(--dark3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;">
+                <option>Power Systems</option><option>Security</option><option>Automation</option><option>Control Panels</option><option>Elevators</option><option>Petroleum</option><option>BMS</option><option>Consultancy</option>
+              </select>
+            </div>
+            <div><label style="font-size:10px;color:var(--muted);display:block;">Progress %</label><input type="number" id="ap-progress" value="0" min="0" max="100" style="width:100%;padding:6px 8px;background:var(--dark3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;"></div>
+            <div><label style="font-size:10px;color:var(--muted);display:block;">Status</label>
+              <select id="ap-status" style="width:100%;padding:6px 8px;background:var(--dark3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;">
+                <option value="active">In Progress</option><option value="pending">Scheduled</option><option value="complete">Complete</option><option value="delayed">Delayed</option>
+              </select>
+            </div>
+            <button class="admin-btn-sm admin-btn-primary" onclick="addProject('${selectedClient.email}')" style="padding:6px 12px;">Add</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  const html = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
+      <h3 style="font-size:16px;font-weight:800;">Admin Dashboard</h3>
+      <div style="display:flex;gap:8px;">
+        <button class="admin-btn-sm admin-btn-primary" onclick="document.getElementById('add-client-form').style.display=document.getElementById('add-client-form').style.display==='none'?'block':'none'">+ Add Client</button>
+        <button class="admin-btn-sm admin-btn-danger" onclick="adminLogout()">Logout</button>
+      </div>
+    </div>
+
+    <div id="add-client-form" style="display:none;margin-bottom:1.5rem;padding:1rem;background:var(--dark4);border-radius:8px;">
+      <div style="font-size:12px;font-weight:700;margin-bottom:0.5rem;">Register New Client</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;align-items:end;">
+        <div><label style="font-size:10px;color:var(--muted);display:block;">Full Name</label><input type="text" id="ac-name" placeholder="Client name" style="width:100%;padding:6px 8px;background:var(--dark3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;"></div>
+        <div><label style="font-size:10px;color:var(--muted);display:block;">Email</label><input type="email" id="ac-email" placeholder="client@email.com" style="width:100%;padding:6px 8px;background:var(--dark3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;"></div>
+        <div><label style="font-size:10px;color:var(--muted);display:block;">Password</label><input type="text" id="ac-pass" placeholder="Set password" style="width:100%;padding:6px 8px;background:var(--dark3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;"></div>
+        <div><label style="font-size:10px;color:var(--muted);display:block;">Company (optional)</label><input type="text" id="ac-company" placeholder="Company name" style="width:100%;padding:6px 8px;background:var(--dark3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;"></div>
+      </div>
+      <button class="admin-btn-sm admin-btn-primary" onclick="addClient()" style="margin-top:8px;">Register Client</button>
+    </div>
+
+    <div style="display:grid;grid-template-columns: 1fr 1fr;gap:1.5rem;">
+      <div>
+        <h4 style="font-size:13px;margin-bottom:0.75rem;">Registered Clients</h4>
+        <div style="overflow-x:auto;max-height:300px;overflow-y:auto;">
+          <table class="portal-tbl admin-clients-tbl">
+            <thead><tr><th>Name</th><th>Email</th><th>Company</th><th>Projects</th><th>Actions</th></tr></thead>
+            <tbody>${clientRows}</tbody>
+          </table>
+        </div>
+      </div>
+      <div>
+        ${projectSection || '<div style="color:var(--muted);font-size:13px;padding:2rem 0;text-align:center;">Select a client from the left to manage their projects.</div>'}
+      </div>
+    </div>
+  `;
+
+  $('#admin-dashboard-content').html(html);
+}
+
+function selectClient(email) {
+  selectedClientEmail = email;
+  renderAdminDashboard();
+}
+
+function addClient() {
+  const name = $('#ac-name').val().trim();
+  const email = $('#ac-email').val().trim();
+  const password = $('#ac-pass').val().trim();
+  const company = $('#ac-company').val().trim();
+  if (!name || !email || !password) {
+    showToast('⚠️ Please fill in name, email, and password.');
+    return;
+  }
+  const data = getAdminData();
+  if (data.clients.find(c => c.email === email)) {
+    showToast('⚠️ A client with this email already exists.');
+    return;
+  }
+  data.clients.push({ name, email, password, company, projects: [] });
+  saveAdminData(data);
+  $('#ac-name, #ac-email, #ac-pass, #ac-company').val('');
+  renderAdminDashboard();
+  showToast('✅ Client registered successfully!');
+}
+
+function deleteClient(email) {
+  if (!confirm('Delete this client and all their projects?')) return;
+  const data = getAdminData();
+  data.clients = data.clients.filter(c => c.email !== email);
+  saveAdminData(data);
+  if (selectedClientEmail === email) selectedClientEmail = null;
+  renderAdminDashboard();
+  showToast('🗑️ Client deleted.');
+}
+
+function addProject(clientEmail) {
+  const name = $('#ap-name').val().trim();
+  const division = $('#ap-div').val();
+  const progress = parseInt($('#ap-progress').val()) || 0;
+  const status = $('#ap-status').val();
+  if (!name) {
+    showToast('⚠️ Please enter a project name.');
+    return;
+  }
+  const data = getAdminData();
+  const client = data.clients.find(c => c.email === clientEmail);
+  if (!client) { showToast('❌ Client not found.'); return; }
+  if (!client.projects) client.projects = [];
+  client.projects.push({ name, division, progress, status });
+  saveAdminData(data);
+  $('#ap-name').val('');
+  $('#ap-progress').val('0');
+  renderAdminDashboard();
+  showToast('✅ Project added!');
+}
+
+function deleteProject(clientEmail, index) {
+  if (!confirm('Delete this project?')) return;
+  const data = getAdminData();
+  const client = data.clients.find(c => c.email === clientEmail);
+  if (client && client.projects) {
+    client.projects.splice(index, 1);
+    saveAdminData(data);
+    renderAdminDashboard();
+    showToast('🗑️ Project deleted.');
+  }
+}
+
+window.toggleAdmin = toggleAdmin;
+window.closeAdminModal = closeAdminModal;
+window.adminLogin = adminLogin;
+window.adminLogout = adminLogout;
+window.addClient = addClient;
+window.deleteClient = deleteClient;
+window.selectClient = selectClient;
+window.addProject = addProject;
+window.deleteProject = deleteProject;
 
 /* ==========================================================================
    INITIALIZE ALL

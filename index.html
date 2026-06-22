@@ -509,6 +509,28 @@
   </div>
 </footer>
 
+<!-- ====== ADMIN TOGGLE (hidden in plain sight) ====== -->
+<button class="admin-toggle" onclick="toggleAdmin()" title="⚙️">⚙️</button>
+
+<!-- ====== ADMIN PANEL MODAL ====== -->
+<div class="modal-overlay" id="admin-modal">
+  <div class="modal-box" style="max-width:860px;">
+    <button class="modal-close" onclick="closeAdminModal()">×</button>
+    <div id="admin-login-screen">
+      <div style="text-align:center;padding:2rem;">
+        <div style="font-size:32px;margin-bottom:1rem;">⚙️</div>
+        <h3 style="font-size:18px;font-weight:800;margin-bottom:0.5rem;">Admin Panel</h3>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:1.5rem;">Enter your admin password to continue.</p>
+        <input type="password" id="admin-pass" placeholder="••••••••" style="width:220px;padding:10px 14px;background:var(--dark4);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;text-align:center;margin-bottom:1rem;display:block;margin-left:auto;margin-right:auto;" onkeydown="if(event.key==='Enter')adminLogin()">
+        <button class="submit-btn" onclick="adminLogin()" style="width:220px;display:block;margin:0 auto;">Login →</button>
+      </div>
+    </div>
+    <div id="admin-dashboard-screen" style="display:none;">
+      <div id="admin-dashboard-content"></div>
+    </div>
+  </div>
+</div>
+
 <!-- ====== CHATBOT ====== -->
 <button class="chat-fab" onclick="toggleChat()" title="Chat with OTH AI Assistant">💬</button>
 <div class="chat-window" id="chat-window">
