@@ -1,6 +1,7 @@
 import $ from 'jquery';
 import * as THREE from 'three';
 import emailjs from '@emailjs/browser';
+import { fetchAllContent, urlFor } from './sanity.js';
 
 emailjs.init({
   publicKey: '8jQJJ96CcdgO-6Q2b',
@@ -354,16 +355,32 @@ const engineers = [
   },
 ];
 
-function renderEngineerCards() {
-  const avatars = [
-    'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=120&h=120&fit=crop&auto=format',
-    'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=120&h=120&fit=crop&auto=format',
-    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop&auto=format',
-  ];
+function getActiveEngineers() {
+  if (sanityContent?.teamMembers?.length) {
+    return sanityContent.teamMembers.map(m => ({
+      name: m.name || 'Engineer',
+      title: m.title || 'Engineer',
+      desc: m.bio || '',
+      tech: m.techStack || '',
+      phone: m.phone || '',
+      whatsapp: m.whatsappUrl || 'https://wa.link/uxd689',
+      email: m.email || 'olatmatics.tech@gmail.com',
+      photo: m.photo || null,
+    }));
+  }
+  return engineers;
+}
 
-  return engineers.map((eng, i) => `
+function renderEngineerCards() {
+  const engList = getActiveEngineers();
+  return engList.map((eng, i) => {
+    const photoUrl = eng.photo ? getSanityImageUrl(eng.photo, 120) : null;
+    const avatarHtml = photoUrl
+      ? `<img class="engineer-avatar" src="${photoUrl}" alt="${eng.name}">`
+      : `<div class="engineer-avatar" style="background:var(--accent);color:#0a0c0f;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;border-radius:50%;width:64px;height:64px;flex-shrink:0;">${eng.name.charAt(0)}</div>`;
+    return `
     <div class="engineer-card">
-      <img class="engineer-avatar" src="${avatars[i]}" alt="${eng.name}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2264%22 height=%2264%22 viewBox=%220 0 64 64%22><circle cx=%2232%22 cy=%2232%22 r=%2232%22 fill=%22%23f5a623%22/><text x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%2224%22 fill=%22white%22>${eng.name.charAt(5)}</text></svg>'" />
+      ${avatarHtml}
       <div class="engineer-info">
         <div class="engineer-name">${eng.name}</div>
         <div class="engineer-title">${eng.title}</div>
@@ -376,7 +393,7 @@ function renderEngineerCards() {
         </div>
       </div>
     </div>
-  `).join('');
+  `}).join('');
 }
 
 function initEmergencyDispatch() {
@@ -705,12 +722,29 @@ const articles = {
 };
 
 function openArticle(key) {
-  const art = articles[key];
+  const staticArt = articles[key];
+  let art = staticArt;
+  if (!art && sanityContent?.knowledgeArticles) {
+    const found = sanityContent.knowledgeArticles.find(a => a.slug?.current === key);
+    if (found) art = found;
+  }
   if (!art) return;
   const $overlay = $('#article-modal');
-  $overlay.find('.modal-title').html(`<span style="font-size:11px;color:var(--accent);letter-spacing:1px;text-transform:uppercase;">${art.category}</span><br>${art.title}`);
-  $overlay.find('.modal-sub').html(`${art.readTime} &nbsp;·&nbsp; ${art.date}`);
-  $overlay.find('#article-content').html(art.content);
+  const title = typeof art.title === 'string' ? art.title : '';
+  const cat = art.category || '';
+  const date = art.date || '';
+  const readTime = art.readTime || '';
+  let content = '';
+  if (art.content) {
+    if (typeof art.content === 'string') {
+      content = art.content;
+    } else if (typeof art.markdownContent === 'string') {
+      content = `<div style="line-height:1.75;">${art.markdownContent.replace(/\n/g, '<br>')}</div>`;
+    }
+  }
+  $overlay.find('.modal-title').html(`<span style="font-size:11px;color:var(--accent);letter-spacing:1px;text-transform:uppercase;">${cat}</span><br>${title}`);
+  $overlay.find('.modal-sub').html(`${readTime} &nbsp;·&nbsp; ${date}`);
+  $overlay.find('#article-content').html(content || '<p>Content coming soon.</p>');
   $overlay.addClass('open');
 }
 
@@ -1124,6 +1158,253 @@ window.addProject = addProject;
 window.deleteProject = deleteProject;
 
 /* ==========================================================================
+   SANITY CMS — Content Loader (replaces static content with CMS data)
+   ========================================================================== */
+let sanityContent = null;
+
+function getSanityImageUrl(imageRef, width = 800) {
+  if (!imageRef) return null;
+  try { return urlFor(imageRef).width(width).url(); } catch { return null; }
+}
+
+function renderServicesFromSanity(services) {
+  if (!services || !services.length) return;
+  const $grid = $('.services-grid');
+  if (!$grid.length) return;
+  $grid.empty();
+  services.forEach((svc, i) => {
+    const delay = ((i % 4) * 100) + 100;
+    const features = (svc.features || []).map(f => `<div class="svc-item">${f}</div>`).join('');
+    $grid.append(`
+      <div class="svc-card scroll-animate slide-up delay-${delay}">
+        <span class="svc-icon">${svc.icon || '⚡'}</span>
+        <h3>${svc.title}</h3>
+        <p>${svc.description || ''}</p>
+        <div class="svc-items">${features}</div>
+        <span class="svc-more">${svc.tags || ''}</span>
+      </div>
+    `);
+  });
+}
+
+function renderStatsFromSanity(stats) {
+  if (!stats || !stats.length) return;
+  const $bar = $('.stats-bar');
+  if (!$bar.length) return;
+  $bar.empty();
+  stats.forEach(stat => {
+    $bar.append(`<div class="stat"><div class="stat-val">${stat.value}</div><div class="stat-label">${stat.label || ''}</div></div>`);
+  });
+}
+
+function renderWhyRowsFromSanity(rows) {
+  if (!rows || !rows.length) return;
+  const $list = $('.why-list');
+  if (!$list.length) return;
+  $list.empty();
+  rows.forEach(row => {
+    $list.append(`<div class="why-row"><div class="why-num">${row.number || ''}</div><div><h4>${row.title || ''}</h4><p>${row.description || ''}</p></div></div>`);
+  });
+}
+
+function renderCertificationsFromSanity(certs) {
+  if (!certs || !certs.length) return;
+  const $panel = $('.cert-panel');
+  if (!$panel.length) return;
+  certs.forEach(cert => {
+    $panel.append(`<div class="cert-row"><div class="cert-icon">${cert.icon || '🏅'}</div><div><div class="cert-name">${cert.name || ''}</div><div class="cert-body">${cert.body || ''}</div></div><div class="teal-badge">${cert.badge || '✓ Active'}</div></div>`);
+  });
+}
+
+function renderProjectsFromSanity(projects) {
+  if (!projects || !projects.length) return;
+  const $grid = $('#proj-grid');
+  if (!$grid.length) return;
+  $grid.empty();
+  projects.forEach((proj, i) => {
+    const delays = [100, 200, 300, 400];
+    const delay = delays[i % delays.length];
+    const bg = proj.image ? `background-image:url('${getSanityImageUrl(proj.image)}');background-size:cover;background-position:center;` : `background:linear-gradient(135deg,#1a1200,#0a0c0f);`;
+    $grid.append(`
+      <div class="proj-card scroll-animate slide-up" data-cat="${proj.category || ''}">
+        <div class="proj-img" style="${bg}position:relative;">${proj.tagIcon || ''}<div class="proj-tag">${proj.tagLabel || ''}</div></div>
+        <div class="proj-body"><h3>${proj.title}</h3><p>${proj.description || ''}</p><div class="proj-meta"><div class="pm">Location: <strong>${proj.location || ''}</strong></div><div class="pm">Year: <strong>${proj.year || ''}</strong></div><div class="pm">Value: <strong>${proj.value || ''}</strong></div></div></div>
+      </div>
+    `);
+  });
+}
+
+function renderTeamFromSanity(members) {
+  if (!members || !members.length) return;
+  const $container = $('.section-alt').has('#team').find('[style*="grid-template-columns"]');
+  if (!$container.length) {
+    $container = $('#team').find('[style*="grid-template-columns"]');
+  }
+  if (!$container.length) return;
+  $container.empty();
+  members.forEach((m, i) => {
+    const delay = ((i % 3) * 100) + 100;
+    const photo = getSanityImageUrl(m.photo, 120) || '';
+    const imgTag = photo
+      ? `<img src="${photo}" alt="${m.name}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid var(--accent);margin-bottom:1rem;">`
+      : `<div style="width:80px;height:80px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;color:#0a0c0f;margin-bottom:1rem;border:3px solid var(--accent);">${m.name.charAt(0)}</div>`;
+    $container.append(`
+      <div class="scroll-animate slide-up delay-${delay}" style="background:var(--dark3);border:1px solid var(--border);border-radius:16px;padding:2rem;transition:all 0.3s ease;">
+        <div style="display:flex;flex-direction:column;align-items:center;text-align:center;margin-bottom:1.25rem;">
+          ${photo}
+          <div style="font-size:17px;font-weight:800;color:var(--text);">${m.name}</div>
+          <div style="font-size:12px;color:var(--accent);font-weight:600;margin-top:2px;">${m.title || ''}</div>
+        </div>
+        <p style="font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:1rem;">${m.bio || ''}</p>
+        <div style="font-size:10px;font-family:monospace;background:var(--dark4);padding:6px 10px;border-radius:6px;color:var(--text);margin-bottom:1rem;line-height:1.6;">${m.techStack || ''}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
+          <a href="tel:${m.phone || ''}" style="padding:7px 14px;border-radius:7px;font-size:12px;font-weight:600;background:var(--dark4);color:var(--text);border:1px solid var(--border);text-decoration:none;">📞 ${m.phone || ''}</a>
+          <a href="${m.whatsappUrl || '#'}" target="_blank" style="padding:7px 14px;border-radius:7px;font-size:12px;font-weight:600;background:#25d366;color:#fff;text-decoration:none;">💬 WhatsApp</a>
+          <a href="mailto:${m.email || ''}" style="padding:7px 14px;border-radius:7px;font-size:12px;font-weight:600;background:var(--accent);color:#0a0c0f;text-decoration:none;">✉️ Email</a>
+        </div>
+      </div>
+    `);
+  });
+}
+
+function renderJobsFromSanity(jobs) {
+  if (!jobs || !jobs.length) return;
+  const $grid = $('.careers-grid');
+  if (!$grid.length) return;
+  $grid.empty();
+  jobs.forEach((job, i) => {
+    const delay = ((i % 3) * 100) + 100;
+    const skills = (job.skills || []).map(s => `<span class="skill-tag">${s}</span>`).join('');
+    $grid.append(`
+      <div class="job-card scroll-animate slide-up delay-${delay}">
+        <div class="job-header"><div class="job-title">${job.title}</div><div class="job-type">${job.type || ''}</div></div>
+        <div class="job-meta">
+          <div class="jm">📍 ${job.locations || ''}</div>
+          <div class="jm">🎓 ${job.education || ''}</div>
+          <div class="jm">💼 ${job.experience || ''}</div>
+        </div>
+        <p class="job-desc">${job.description || ''}</p>
+        <div class="job-skills">${skills}</div>
+        <button class="job-apply" onclick="openApply('${job.title}')">Apply for This Role</button>
+      </div>
+    `);
+  });
+}
+
+function renderKnowledgeFromSanity(articles) {
+  if (!articles || !articles.length) return;
+  const $grid = $('.kb-grid');
+  if (!$grid.length) return;
+  $grid.empty();
+  articles.forEach((art, i) => {
+    const delay = ((i % 3) * 100) + 100;
+    const bg = art.image
+      ? `background-image:url('${getSanityImageUrl(art.image)}');background-size:cover;background-position:center;`
+      : `background:linear-gradient(135deg,#1a1200,#f5a62322);`;
+    const slug = art.slug?.current || `art-${i}`;
+    $grid.append(`
+      <div class="kb-card scroll-animate slide-up delay-${delay}" onclick="openArticle('${slug}')">
+        <div class="kb-img" style="${bg}position:relative;">${art.imageEmoji || ''}</div>
+        <div class="kb-body">
+          <div class="kb-cat">${art.category || ''}</div>
+          <h3>${art.title}</h3>
+          <p>${art.excerpt || ''}</p>
+          <div class="kb-footer"><span class="kb-read">${art.readTime || ''} · ${art.date || ''}</span><span class="kb-link">Read →</span></div>
+        </div>
+      </div>
+    `);
+  });
+}
+
+function renderHeroFromSanity(hero) {
+  if (!hero) return;
+  const $badge = $('.hero-badge');
+  if ($badge.length && hero.badge) $badge.html(`<div class="live-dot"></div> ${hero.badge}`);
+  const $heading = $('.hero h1');
+  if ($heading.length && hero.heading) $heading.html(hero.heading.replace(/\n/g, '<br>'));
+  const $sub = $('.hero-sub');
+  if ($sub.length && hero.subheading) $sub.text(hero.subheading);
+  const $pills = $('.hero-clients');
+  if ($pills.length && hero.clientPills?.length) {
+    $pills.html(`<span class="hero-clients-label">Trusted by:</span>${hero.clientPills.map(p => `<span class="client-pill">${p}</span>`).join('')}`);
+  }
+  if (hero.sliderImages?.length) {
+    const $slider = $('#hero-slider');
+    if ($slider.length) {
+      $slider.empty();
+      let active = true;
+      hero.sliderImages.forEach(img => {
+        const url = getSanityImageUrl(img, 1600);
+        if (url) {
+          const $slide = $('<div></div>').addClass('slide').css('background-image', `url('${url}')`);
+          if (active) { $slide.addClass('active'); active = false; }
+          $slider.append($slide);
+        }
+      });
+    }
+  }
+}
+
+function renderPageContentFromSanity(pageContent) {
+  if (!pageContent?.length) return;
+  const contentMap = {};
+  pageContent.forEach(c => { if (c.section) contentMap[c.section] = c; });
+  const $sections = $('.section');
+  $sections.each(function () {
+    const $this = $(this);
+    const $eyebrow = $this.find('.eyebrow');
+    const $title = $this.find('.section-title');
+    const $sub = $this.find('.section-sub');
+    const id = $this.attr('id');
+    if (id && contentMap[id]) {
+      const c = contentMap[id];
+      if ($eyebrow.length && c.subtitle) $eyebrow.text(c.subtitle);
+      if ($title.length && c.title) $title.text(c.title);
+      if ($sub.length && c.body) $sub.text(c.body);
+    }
+  });
+}
+
+function renderSiteSettings(settings) {
+  if (!settings) return;
+  if (settings.companyName) {
+    $('.logo-name').text(settings.companyName);
+  }
+  if (settings.logo) {
+    const logoUrl = getSanityImageUrl(settings.logo, 200);
+    if (logoUrl) $('.logo-img').attr('src', logoUrl);
+  }
+  const $contactLines = $('.form-info-block .contact-line');
+  if ($contactLines.length >= 3) {
+    if (settings.address) $contactLines.eq(0).html(`<span class="ci">📍</span><span>${settings.address}</span>`);
+    const phones = [settings.phone1, settings.phone2].filter(Boolean).map(p => `<a href="tel:${p}" style="color:inherit;">${p}</a>`).join(' | ');
+    if (phones) $contactLines.eq(1).html(`<span class="ci">📞</span><span>${phones}</span>`);
+    if (settings.email) $contactLines.eq(2).html(`<span class="ci">📧</span><span><a href="mailto:${settings.email}" style="color:inherit;">${settings.email}</a></span>`);
+  }
+}
+
+async function loadSanityContent() {
+  try {
+    const content = await fetchAllContent();
+    sanityContent = content;
+    if (content.services?.length) renderServicesFromSanity(content.services);
+    if (content.stats?.length) renderStatsFromSanity(content.stats);
+    if (content.whyRows?.length) renderWhyRowsFromSanity(content.whyRows);
+    if (content.certifications?.length) renderCertificationsFromSanity(content.certifications);
+    if (content.projects?.length) renderProjectsFromSanity(content.projects);
+    if (content.teamMembers?.length) renderTeamFromSanity(content.teamMembers);
+    if (content.jobListings?.length) renderJobsFromSanity(content.jobListings);
+    if (content.knowledgeArticles?.length) renderKnowledgeFromSanity(content.knowledgeArticles);
+    if (content.hero) renderHeroFromSanity(content.hero);
+    if (content.pageContent?.length) renderPageContentFromSanity(content.pageContent);
+    if (content.siteSettings) renderSiteSettings(content.siteSettings);
+    console.log('✅ Sanity content loaded');
+  } catch (err) {
+    console.warn('⚠️ Sanity content unavailable — using static content', err.message);
+  }
+}
+
+/* ==========================================================================
    INITIALIZE ALL
    ========================================================================== */
 $(document).ready(() => {
@@ -1138,4 +1419,5 @@ $(document).ready(() => {
   initPortal();
   initArticleModal();
   initMap();
+  setTimeout(loadSanityContent, 500);
 });

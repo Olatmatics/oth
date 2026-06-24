@@ -5,15 +5,21 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "npm run build:studio && vite build",
+    "build:studio": "cd studio && npx sanity build --output-path ../public/studio --yes 2>nul || (echo Skipped studio build. Run 'npm run build:studio' manually to build the CMS.)",
+    "dev:studio": "cd studio && npx sanity dev -p 3333",
     "preview": "vite preview"
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",
+    "@sanity/client": "^6.24.0",
+    "@sanity/image-url": "^1.1.0",
     "jquery": "^3.7.1",
     "three": "^0.160.0"
   },
   "devDependencies": {
+    "sanity": "^3.60.0",
+    "@sanity/vision": "^3.60.0",
     "vite": "^5.0.0"
   }
 }

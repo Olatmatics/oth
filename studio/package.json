@@ -1,0 +1,10 @@
+{
+  "name": "oth-studio",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "npx sanity dev -p 3333",
+    "build": "npx sanity build --output-path ../public/studio --yes",
+    "deploy": "npx sanity deploy"
+  }
+}

@@ -1,4 +1,7 @@
 node_modules
 dist
 .vite
-*.local
+public/studio
+studio/node_modules
+studio/studio-dist
+studio/.sanity
