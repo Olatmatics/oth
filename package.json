@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run build:studio && vite build",
-    "build:studio": "cd studio && npx sanity build --output-path ../public/studio --yes 2>nul || (echo Skipped studio build. Run 'npm run build:studio' manually to build the CMS.)",
-    "dev:studio": "cd studio && npx sanity dev -p 3333",
+    "build": "vite build",
+    "dev:studio": "cd studio && npx -y sanity@3.60.0 dev -p 3333 --no-auto-update",
+    "build:studio": "cd studio && npx -y sanity@3.60.0 build --output-path ../public/studio --yes --no-auto-update",
     "preview": "vite preview"
   },
   "dependencies": {
